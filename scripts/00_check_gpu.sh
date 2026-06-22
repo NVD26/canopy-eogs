@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # 00_check_gpu.sh — confirm the 4090 is visible and (if env exists) torch sees CUDA.
 # Safe to run anytime. Run this FIRST.
-set -euo pipefail
+#
+# NOTE: `set -eo pipefail` WITHOUT `-u` — conda activate/deactivate hooks (e.g.
+# gdal's geotiff hook) reference unbound vars and would abort under `set -u`.
+set -eo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${HERE}/../configs/milestone.env"
 

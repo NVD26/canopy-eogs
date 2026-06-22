@@ -95,3 +95,21 @@ Open `configs/milestone.env` and confirm:
 - `CONDA_ENV` — conda env name (default `eogs`)
 - `TORCH_INDEX_URL` — CUDA wheel index (default cu121; bump if your driver needs cu124)
 - `MILESTONE_SCENES` — which tiles to reproduce (default the 4 JAX scenes)
+
+---
+
+## Reproducibility contract (for the advisor / fresh machines)
+
+`scripts/01_setup_env.sh` is designed to be the **single self-installing entry point**.
+On a clean WSL2/Ubuntu box it installs everything needed end-to-end:
+
+- Miniconda (if `conda` is missing) → `~/miniconda3`
+- accepts the Anaconda default-channel Terms of Service
+- system build tools via apt (`build-essential`, `cmake`, GDAL/TIFF/PNG/JPEG/FFTW dev libs)
+  — required to compile EOGS's native deps (`iio`, `srtm4`, `plyflatten`)
+- the `eogs` conda env + PyTorch (CUDA wheels) + EOGS + geospatial tooling
+- the 3DGS CUDA kernels (when a CUDA toolkit / `nvcc` is present)
+
+**Policy:** every setup error we ever hit gets fixed *in the script*, never left as a
+manual one-off. If you find a gap on your machine, tell us the error and it gets folded in,
+so the next person runs one command and it just works.

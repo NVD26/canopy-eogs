@@ -1,28 +1,79 @@
 #!/usr/bin/env bash
 # 01_setup_env.sh — build the conda env, clone EOGS, install deps + CUDA kernels.
-# Idempotent-ish: skips steps already done. Run once per machine.
+# Auto-installs Miniconda if missing, accepts conda ToS, installs system build
+# tools, then EOGS + geospatial deps. Idempotent-ish: safe to re-run.
 #
 # Prereqs on the 4090 / WSL2:
-#   - conda / miniconda installed
 #   - NVIDIA driver on Windows (exposes GPU to WSL2) — verify with scripts/00_check_gpu.sh
-#   - CUDA toolkit + nvcc available for building the 3DGS CUDA kernels.
-#       On WSL2: install the CUDA toolkit (e.g. `sudo apt install cuda-toolkit-12-1`
-#       or NVIDIA's WSL-Ubuntu toolkit) and ensure `nvcc --version` works and
-#       CUDA_HOME points at it. The torch cudatoolkit alone is NOT enough to
-#       compile diff-gaussian-rasterization.
-set -euo pipefail
+#   - sudo access (for the apt build-tools step on Debian/Ubuntu)
+#   - CUDA toolkit + nvcc for building the 3DGS CUDA kernels (step 6). The torch
+#     cudatoolkit alone is NOT enough to compile diff-gaussian-rasterization.
+#
+# NOTE: we intentionally use `set -eo pipefail` WITHOUT `-u` (nounset). conda's
+# activate/deactivate hook scripts (e.g. gdal's geotiff-deactivate.sh) reference
+# unbound vars like _CONDA_SET_GEOTIFF_CSV; under `set -u` that aborts the script
+# with "unbound variable". Dropping -u keeps conda activation working.
+set -eo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${HERE}/../configs/milestone.env"
 
-echo "==================== 1) conda env: ${CONDA_ENV} ===================="
+echo "==================== 0) ensure conda is available ===================="
 if ! command -v conda >/dev/null 2>&1; then
-  echo "!! conda not found. Install Miniconda first."; exit 1
+  if [ -x "${HOME}/miniconda3/bin/conda" ]; then
+    echo "Found existing Miniconda at ~/miniconda3 — using it."
+  else
+    echo "conda not found — installing Miniconda to ~/miniconda3 ..."
+    ARCH="$(uname -m)"
+    case "${ARCH}" in
+      x86_64)        MC_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh" ;;
+      aarch64|arm64) MC_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh" ;;
+      *) echo "!! Unsupported arch '${ARCH}'. Install Miniconda manually, then re-run."; exit 1 ;;
+    esac
+    MC_INSTALLER="${HOME}/miniconda_installer.sh"
+    if command -v wget >/dev/null 2>&1; then
+      wget -q -O "${MC_INSTALLER}" "${MC_URL}"
+    else
+      curl -fsSL -o "${MC_INSTALLER}" "${MC_URL}"
+    fi
+    bash "${MC_INSTALLER}" -b -p "${HOME}/miniconda3"
+    rm -f "${MC_INSTALLER}"
+    "${HOME}/miniconda3/bin/conda" init bash || true
+    echo "Miniconda installed to ~/miniconda3 (run 'source ~/.bashrc' later for interactive use)."
+  fi
+  # shellcheck disable=SC1091
+  source "${HOME}/miniconda3/etc/profile.d/conda.sh"
 fi
+echo "conda: $(command -v conda)"
+
+echo "==================== 0b) accept Anaconda default-channel ToS (best-effort) ===================="
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r    2>/dev/null || true
+
+echo "==================== 0c) system build tools (Debian/Ubuntu; needs sudo) ===================="
+# EOGS deps (iio, plyflatten, srtm4) compile C/C++ — they need make, a compiler,
+# and image/geo dev libraries. Without these you get '/bin/sh: make: not found'.
+if command -v apt-get >/dev/null 2>&1; then
+  SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+  ${SUDO} apt-get update -y || true
+  if ! ${SUDO} apt-get install -y \
+        build-essential cmake make gcc g++ pkg-config \
+        libgdal-dev gdal-bin libtiff-dev libpng-dev libjpeg-dev libfftw3-dev \
+        git wget unzip; then
+    echo "   !! apt install failed. Run this manually with sudo, then re-run the script:"
+    echo "      sudo apt-get install -y build-essential cmake libgdal-dev gdal-bin \\"
+    echo "           libtiff-dev libpng-dev libjpeg-dev libfftw3-dev"
+  fi
+else
+  echo "   apt-get not found — install make/gcc/g++ and libtiff/png/jpeg/gdal dev libs yourself."
+fi
+
+echo "==================== 1) conda env: ${CONDA_ENV} ===================="
+# shellcheck disable=SC1091
 source "$(conda info --base)/etc/profile.d/conda.sh"
 if conda env list | grep -qE "^\s*${CONDA_ENV}\s"; then
   echo "env '${CONDA_ENV}' already exists — reusing."
 else
-  conda create -n "${CONDA_ENV}" "python=${PYTHON_VERSION}" -y
+  conda create -n "${CONDA_ENV}" -c conda-forge "python=${PYTHON_VERSION}" -y
 fi
 conda activate "${CONDA_ENV}"
 python --version
@@ -50,13 +101,11 @@ echo "==================== 4) EOGS python requirements ===================="
 pip install -r "${EOGS_DIR}/requirements.txt"
 
 echo "==================== 5) geospatial + lidar tooling (for Paper 1 later) ===================="
-# gdal can be fussy via pip; conda-forge is more reliable. Try conda first, fall back to pip.
 conda install -n "${CONDA_ENV}" -c conda-forge gdal -y || pip install gdal || \
   echo "   (gdal optional for the milestone; revisit before Paper 1 lidar work)"
 pip install rasterio rpcm pyproj laspy h5py shapely earthaccess
 
 echo "==================== 6) build 3DGS CUDA kernels ===================="
-# These compile against your CUDA toolkit; needs nvcc + CUDA_HOME.
 if ! command -v nvcc >/dev/null 2>&1; then
   echo "!! nvcc not found — cannot build CUDA kernels. Install the CUDA toolkit"
   echo "   (see header notes), then re-run this script. Skipping for now."
