@@ -1,0 +1,25 @@
+# Reference conda env spec. The authoritative build is scripts/01_setup_env.sh
+# (it also clones EOGS and compiles the CUDA kernels, which conda can't do).
+# This file documents the Python-side environment for reproducibility / record.
+name: eogs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - gdal            # via conda-forge (more reliable than pip wheel)
+  - pip
+  - pip:
+      # PyTorch is installed separately with the CUDA wheel index in 01_setup_env.sh:
+      #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+      # EOGS's own requirements.txt is installed from the clone (pip install -r ...).
+      # Geospatial + lidar tooling (Paper 1 onward):
+      - rasterio
+      - rpcm
+      - pyproj
+      - laspy
+      - h5py
+      - shapely
+      - earthaccess
+      # 3DGS CUDA kernels are built from the EOGS submodules in 01_setup_env.sh:
+      #   pip install <EOGS>/src/gaussiansplatting/submodules/diff-gaussian-rasterization
+      #   pip install <EOGS>/src/gaussiansplatting/submodules/simple-knn

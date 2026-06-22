@@ -1,0 +1,50 @@
+# ---- Big data & model artifacts: NEVER commit (track via data/manifest.csv) ----
+# EOGS source clone (third-party repo with its own git history + CUDA build)
+eogs-src/
+external/EOGS/
+# Downloaded benchmark data + extracted tiles
+eogs-data/
+data/images/
+data/rpcs/
+data/truth/
+data/*.zip
+*.tif
+*.tiff
+*.las
+*.laz
+*.h5
+*.hdf5
+
+# Checkpoints / training outputs
+checkpoints/
+runs/
+outputs/
+results/**/*.ply
+*.ply
+*.ckpt
+*.pth
+
+# ---- Python / conda ----
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+.venv/
+env/
+*.egg-info/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ---- Stray temp files ----
+*.tmp
+__deltest.tmp
+__probe.txt
+
+# ---- Secrets ----
+.netrc
+.env.local
+*.secret

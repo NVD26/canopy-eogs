@@ -1,0 +1,5 @@
+dataset,scene_or_product,location_on_4090,size,source_url,date_pulled,notes
+EOGS dataset_v01,JAX_004;JAX_068;JAX_214;JAX_260;IARPA_*,~/eogs-src/EOGS/data,,https://github.com/mezzelfo/EOGS/releases/download/dataset_v01/data.zip,,milestone reproduction data (images+rpcs+truth DSM); pulled by scripts/03
+GEDI L2A,,,,,,Paper 1 (later) — canopy top + ground returns
+ICESat-2 ATL08,,,,,,Paper 1 (later) — canopy & terrain photons
+HLS,,,,,,Paper 2 (later) — multispectral time series
