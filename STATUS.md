@@ -12,8 +12,8 @@ between the laptop and the 4090 PC. Keep it honest — record failures, not just
 
 ## 0. Current focus (one sentence)
 
-EOGS fully reproduced (all 7 DFC2019/IARPA scenes, DSM MAE matches paper). Paused before
-Paper-1 (GEDI/ICESat-2 canopy-aware extension) — design + advisor sign-off next session.
+Paper-1 (canopy-aware EOGS) in design. Advisor design doc written; lidar query script ready;
+core two-surface idea validated in a CPU feasibility prototype. Next: advisor sign-off + M6 data.
 
 ---
 
@@ -50,12 +50,22 @@ Legend: ☐ todo · ◐ in progress · ✅ done · ✗ blocked
 ## 4. Next steps (ordered)
 
 1. Read deeply: EOGS/EOGS++, ForestSplat, GEDI L2A/L2B + ICESat-2 ATL08 fusion refs.
-2. Earthdata Login set up (`scripts/02_earthdata_auth.py`) — for GEDI/ICESat-2/HLS.
+2. ~~Earthdata Login~~ ✅ done (auth verified, ~/.netrc persisted) — ready for GEDI/ICESat-2/HLS pulls.
 3. Select forested AOIs with GEDI + ICESat-2 + USGS 3DEP airborne-lidar overlap.
 4. Design Paper-1: lidar-anchored height loss + two-surface (canopy/ground) decomposition
    + calibrated uncertainty head, as an ADDITION to EOGS. Advisor sign-off before building.
 
 ## 5. Blockers / open questions
+
+- **Lidar density (MEASURED, full aggregation):** JAX_068 over ALL 24 GEDI granules (2019-24)
+  = **108 GEDI footprints in-tile** (L2A=L2B=108), each carrying BOTH returns (canopy top +
+  ground) = 108 two-return anchors / 600 m tile. WORKABLE: prototype hit ~0.2 m DTM from ~70
+  anchors. ICESat-2 ATL08 = **0** in JAX_068 across 25 granules (13 in JAX_004) — its ~km track
+  spacing usually misses a 600 m tile. => GEDI is the PRIMARY anchor source at tile scale;
+  ICESat-2 is opportunistic (helps more on larger AOIs). Refines design-doc §5.
+- **AOI finding:** RPC localization shows JAX tiles = Jacksonville FL (3DEP airborne lidar
+  available for dense CHM/DTM truth); IARPA tiles = Buenos Aires, Argentina (NO USGS 3DEP).
+  => center canopy evaluation on JAX; treat IARPA as built-up no-regression checks.
 
 - None. Build chain on a fresh WSL2 box (all automated in `01_setup_env.sh`, in order):
   build-essential/make, conda ToS accept, drop `set -u` (conda hooks), env-matched system
@@ -103,17 +113,36 @@ EOGS paper Table 1 reference (fill exact per-scene from the PDF): JAX avg ≈ 1.
 | Dataset | Location on 4090 | Source | Pulled? |
 |---------|------------------|--------|---------|
 | EOGS dataset_v01 (JAX_004/068/214/260 + IARPA_001/002/003, images+rpcs+truth DSM) | `~/eogs-src/EOGS/data` | EOGS GitHub release | ✅ |
-| GEDI L2A/L2B (Paper 1, later) | — | Earthdata / earthaccess | ☐ |
-| ICESat-2 ATL08 (Paper 1, later) | — | Earthdata / earthaccess | ☐ |
+| GEDI L2A/L2B (Paper 1) | ~/eogs-data/lidar_probe | Earthdata / earthaccess | **108 footprints/JAX_068 tile** (full 24-granule aggregate); primary anchor source |
+| ICESat-2 ATL08 (Paper 1) | (probe) | Earthdata / earthaccess | sparse at tile scale: 0 in JAX_068, 13 in JAX_004 (km track spacing); opportunistic |
 | HLS (Paper 2, later) | — | Earthdata / earthaccess | ☐ |
 
 ---
 
 ## 9. Session log (newest on top)
 
+- **2026-06-22** — Paper-1 prototype v2 (prototypes/twosurface_v2_learned_opacity.py): removed
+  the known-canopy-mask assumption. Mask now LEARNED jointly from a noisy NDVI-like cue + sparse
+  lidar two-returns + smoothness (IoU 0.94 vs true forest, beating the 0.90 cue alone). Under-canopy
+  DTM MAE: single-surface 12.18 m, oracle-mask 0.198 m, LEARNED-mask 0.223 m. Learned ≈ oracle ≫
+  single -> method needs no given canopy mask. Last conceptual gap before EOGS integration closed.
+  Also: ran scripts/10_query_lidar.py --count-footprints (2 granules): GEDI 0-34 footprints/tile,
+  ATL08 0-13/tile per 2 overpasses (highly variable); full JAX_068 aggregation (25 granules) running.
+
+- **2026-06-22** — Paper-1 kickoff. Novelty fact-check (niche still open: spaceborne-lidar +
+  satellite-RPC 3DGS canopy/ground separation is unoccupied). Mapped EOGS injection points
+  (renders altitude channel; has disabled L_altitude_reference + L_nll uncertainty hooks).
+  Wrote advisor design doc (Paper1_Design_CanopyAwareEOGS.docx), lidar query script
+  (scripts/10_query_lidar.py), and a CPU feasibility prototype (prototypes/twosurface_toy.py):
+  with the SAME 4% sparse lidar anchors, two-surface model recovers under-canopy DTM to 0.20 m
+  MAE while single-surface (EOGS-like) is off by ~12 m (the canopy height); canopy-top fit equal
+  (no regression). Density sweep monotonic (0%→1.10 m, 1%→0.48, 4%→0.21, 8%→0.10). Core idea
+  is identifiable from sparse anchors — green light to design the real method. Gate: advisor
+  sign-off before EOGS integration.
+
 - **2026-06-22** — Full EOGS reproduction on the 4090: all 7 scenes via reproduceMain.
   JAX MAE mean 1.44 m (matches paper ~1.4 m); IARPA mean 1.88 m. Env built end-to-end by
   01_setup_env.sh; every setup error folded back into the scripts (single self-installing
-  path for the advisor). Phase-1 milestone complete. Earthdata auth: pending (next session).
+  path for the advisor). Phase-1 milestone complete. Earthdata auth verified (~/.netrc persisted); GEDI test query OK.
 - **2026-06-22** — Cowork scaffolding session. Built git repo, scripts, configs, notebook.
 - **2026-06-22** — Repo initialized; planning docs added. No code run yet.
