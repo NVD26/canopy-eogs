@@ -182,19 +182,25 @@ def main() -> int:
     print(f"  GEDI canopy height (top-ground): median {np.median(canopy_h):.1f} m, "
           f"range [{canopy_h.min():.1f},{canopy_h.max():.1f}]")
 
-    # trust gate on the better of mean/max comparison
-    abs_med = min(am_mean, am_max); off = off_mean if am_mean <= am_max else off_max
-    trust = abs_med <= args.max_residual
-    print(f"\nTRUST GATE (best abs-median {abs_med:.2f} m <= {args.max_residual} m): {'PASS' if trust else 'FAIL'}")
-    if not trust:
-        print("!! Still too large. Diagnose with the table above:")
-        print("   - if 1-2 footprints dominate -> geolocation outliers at canopy/building edges (filter).")
-        print("   - if ALL rows are biased the same way -> a systematic offset (datum) — already removed.")
-        print("   - if scatter is large & random with few points -> need MORE footprints (relax --sensitivity,")
-        print("     or use a larger AOI) for a statistically meaningful check.")
-        print("   GEDI vs airborne typically agrees to a few metres; >5 m here with only a handful of points")
-        print("   is most likely small-sample + geolocation, not necessarily a code bug.")
-        return 2
+    # Honest verdict: use the PRINCIPLED comparison only (GEDI canopy-top vs DSM footprint
+    # MAX -- both are the top of the footprint). Do NOT cherry-pick mean-vs-max. And require a
+    # minimum number of overlapping footprints, or the check is statistically meaningless.
+    MIN_N = 30
+    abs_med, off = am_max, off_max
+    n_ov = int(v.sum())
+    if n_ov < MIN_N:
+        validated = False
+        print(f"\nVERDICT: INCONCLUSIVE -- only {n_ov} footprints (need >={MIN_N} for a real check).")
+        print(f"  principled top-vs-DSM-max: abs-median {abs_med:.2f} m, MAE {am_max:.2f} m -- too few")
+        print("  points + large scatter to trust. NOT validated; do NOT train on these yet.")
+        print("  -> validate on a LARGER area with airborne lidar (USGS 3DEP over Jacksonville):")
+        print("     hundreds of footprints will pin the GEDI<->DSM datum offset and check BOTH returns.")
+    elif abs_med <= args.max_residual:
+        validated = True
+        print(f"\nVERDICT: PASS (n={n_ov}, principled abs-median {abs_med:.2f} m <= {args.max_residual} m).")
+    else:
+        validated = False
+        print(f"\nVERDICT: FAIL (n={n_ov}, abs-median {abs_med:.2f} m > {args.max_residual} m). Investigate.")
 
     # 4. save anchors aligned to the DSM/scene vertical datum (subtract the offset)
     os.makedirs(out_dir, exist_ok=True)
@@ -203,10 +209,11 @@ def main() -> int:
              ground=arr["ground"] - off, canopytop=arr["top"] - off,
              rh100=arr["rh100"], sensitivity=arr["sens"], datum_offset=off,
              tile_bounds=np.array([E_min, N_min, E_max, N_max]), utm_epsg=epsg,
-             dsm_txt=np.array([xoff, yoff, size, res]))
-    print(f"\nSaved {n} validated anchors -> {out}")
-    print("Note: GROUND values still need a bare-earth DTM (USGS 3DEP) to validate separately.")
-    return 0
+             dsm_txt=np.array([xoff, yoff, size, res]), validated=validated)
+    tag = "VALIDATED" if validated else "UNVALIDATED (do not train on these yet)"
+    print(f"\nSaved {n} anchors [{tag}] -> {out}")
+    print("Note: GROUND still needs a bare-earth DTM (USGS 3DEP) to validate separately.")
+    return 0 if validated else 2
 
 
 if __name__ == "__main__":

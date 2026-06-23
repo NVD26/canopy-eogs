@@ -12,8 +12,9 @@ between the laptop and the 4090 PC. Keep it honest — record failures, not just
 
 ## 0. Current focus (one sentence)
 
-Paper-1 (canopy-aware EOGS) in design. Advisor design doc written; lidar query script ready;
-core two-surface idea validated in a CPU feasibility prototype. Next: advisor sign-off + M6 data.
+Paper-1 (canopy-aware EOGS): design done, two-surface idea validated (prototypes), and GEDI GROUND
+VALIDATED on real data vs 3DEP (datum -29.6 m=geoid, 0.54 m median, 90% within 3 m). Next: fold
+datum+filter into the anchor builder (wide AOI), then M7 = lidar loss in EOGS.
 
 ---
 
@@ -63,9 +64,22 @@ Legend: ☐ todo · ◐ in progress · ✅ done · ✗ blocked
   meaningfully fewer than 108 (~tens). Still likely workable (prototype: ~20-70 anchors), but if a
   256 m tile is too anchor-poor we enlarge the AOI. GEDI primary; ICESat-2 opportunistic (0 in
   JAX_068). LESSON: always use exact tile bounds, not padded bbox, for the budget.
-- **Validation gate (in progress):** scripts/12_build_anchors.py cross-checks GEDI canopy-top vs
-  the airborne DSM before any anchor feeds a loss; must PASS (residual abs-median <=5 m after a
-  global datum offset) or we fix the projection/datum first.
+- **Validation = INCONCLUSIVE (honest):** scripts/12_build_anchors.py found only **7 quality GEDI
+  footprints** in the 256 m JAX_068 tile (quality_flag limited, not sensitivity). The canopy-top vs
+  airborne-DSM-max check gave ~0 m offset but MAE 5.7 m / std 7.5 m — too few points + too much
+  scatter to TRUST. Gate now reports INCONCLUSIVE (needs >=30 footprints) and marks anchors
+  UNVALIDATED. Two real implications: (a) a 256 m tile is anchor-POOR for supervision AND for
+  validation; (b) the GEDI<->DSM vertical datum is not yet pinned.
+- **GEDI GROUND VALIDATED (3DEP, 10 km AOI, scripts/13):** 17,182 GEDI footprints vs USGS 3DEP
+  bare-earth DTM. Datum offset = **-29.61 m** (= local geoid, exactly as expected) -> projection +
+  datum are CORRECT. Residual after offset: **abs-median 0.54 m** (sub-meter agreement!). CAVEAT:
+  mean MAE 68 m / std 569 m -> a minority of GEDI shots are GROSS BLUNDERS (known GEDI behavior,
+  not removed by quality_flag alone). RESULT after datum shift: **90.0% within 3 m, 72.8% within 1 m
+  -> 15,462 / 17,182 CLEAN anchors**; MAD 0.80 m. So GEDI ground = sub-meter ground truth after
+  (1) +(-29.61 m) datum shift and (2) drop |resid|>3 m blunders (~10%). VERDICT: PASS. 3DEP DTM also
+  becomes our bare-earth ground-truth for the under-canopy evaluation. Saved gedi_3dep_validation.npz.
+- **Anchor pipeline TODO:** fold the -29.61 m datum shift + outlier filter into scripts/12; the
+  big-AOI 3DEP also resolves the 256 m-tile anchor-poverty (thousands of footprints over Jax).
 - **EOGS tree masks:** ship per-scene (scripts/eval/tree_masks/<scene>.png); JAX_068 mask is ~96%
   of pixels (polarity to confirm) -> JAX is heavily vegetated, good canopy site. Use for measuring
   EOGS error on tree pixels (motivation) and as a learned-mask prior.
@@ -126,6 +140,15 @@ EOGS paper Table 1 reference (fill exact per-scene from the PDF): JAX avg ≈ 1.
 ---
 
 ## 9. Session log (newest on top)
+
+- **2026-06-22** — M6 DATA VALIDATED. scripts/13_validate_gedi_3dep.py: fetched USGS 3DEP bare-earth
+  DTM over a 10 km Jacksonville AOI, validated 17,182 GEDI ground returns. Datum offset -29.61 m
+  (= local geoid, confirms projection+datum correct); residual abs-median 0.54 m, MAD 0.80 m;
+  90.0% within 3 m, 72.8% within 1 m -> 15,462 clean anchors. Caught (via mean MAE 68 m vs median
+  0.54 m) that ~10% of GEDI shots are gross blunders -> must datum-shift AND outlier-filter. The
+  256 m DFC2019 tile had only 7 GEDI footprints (anchor-poor); the wide 3DEP AOI fixes both the
+  validation power and the supervision budget. GEDI ground is now TRUSTED ground truth. Next:
+  fold -29.61 m + filter into scripts/12 (wide AOI); then M7 lidar loss.
 
 - **2026-06-22** — Paper-1 prototype v2 (prototypes/twosurface_v2_learned_opacity.py): removed
   the known-canopy-mask assumption. Mask now LEARNED jointly from a noisy NDVI-like cue + sparse
