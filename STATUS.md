@@ -57,12 +57,18 @@ Legend: ☐ todo · ◐ in progress · ✅ done · ✗ blocked
 
 ## 5. Blockers / open questions
 
-- **Lidar density (MEASURED, full aggregation):** JAX_068 over ALL 24 GEDI granules (2019-24)
-  = **108 GEDI footprints in-tile** (L2A=L2B=108), each carrying BOTH returns (canopy top +
-  ground) = 108 two-return anchors / 600 m tile. WORKABLE: prototype hit ~0.2 m DTM from ~70
-  anchors. ICESat-2 ATL08 = **0** in JAX_068 across 25 granules (13 in JAX_004) — its ~km track
-  spacing usually misses a 600 m tile. => GEDI is the PRIMARY anchor source at tile scale;
-  ICESat-2 is opportunistic (helps more on larger AOIs). Refines design-doc §5.
+- **Lidar density (CORRECTED):** the 108 GEDI count used a ~800 m padded bbox, but the ACTUAL
+  eval tile is only **256 m** (JAX_068_DSM.txt = 512 px @ 0.5 m, UTM zone 17). True in-tile anchor
+  count is being recomputed by scripts/12_build_anchors.py against the exact DSM bounds — expect
+  meaningfully fewer than 108 (~tens). Still likely workable (prototype: ~20-70 anchors), but if a
+  256 m tile is too anchor-poor we enlarge the AOI. GEDI primary; ICESat-2 opportunistic (0 in
+  JAX_068). LESSON: always use exact tile bounds, not padded bbox, for the budget.
+- **Validation gate (in progress):** scripts/12_build_anchors.py cross-checks GEDI canopy-top vs
+  the airborne DSM before any anchor feeds a loss; must PASS (residual abs-median <=5 m after a
+  global datum offset) or we fix the projection/datum first.
+- **EOGS tree masks:** ship per-scene (scripts/eval/tree_masks/<scene>.png); JAX_068 mask is ~96%
+  of pixels (polarity to confirm) -> JAX is heavily vegetated, good canopy site. Use for measuring
+  EOGS error on tree pixels (motivation) and as a learned-mask prior.
 - **AOI finding:** RPC localization shows JAX tiles = Jacksonville FL (3DEP airborne lidar
   available for dense CHM/DTM truth); IARPA tiles = Buenos Aires, Argentina (NO USGS 3DEP).
   => center canopy evaluation on JAX; treat IARPA as built-up no-regression checks.
