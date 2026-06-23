@@ -12,8 +12,8 @@ between the laptop and the 4090 PC. Keep it honest — record failures, not just
 
 ## 0. Current focus (one sentence)
 
-EOGS reproduced (DSM MAE matches paper). Next: read Paper-1 references and design the
-GEDI/ICESat-2 canopy-aware extension — but no new code until advisor sign-off on the plan.
+EOGS fully reproduced (all 7 DFC2019/IARPA scenes, DSM MAE matches paper). Paused before
+Paper-1 (GEDI/ICESat-2 canopy-aware extension) — design + advisor sign-off next session.
 
 ---
 
@@ -25,56 +25,64 @@ Legend: ☐ todo · ◐ in progress · ✅ done · ✗ blocked
 |---|-----------|--------|
 | M0 | Repo scaffolding built (scripts, configs, STATUS workflow) | ✅ |
 | M1 | Conda env `eogs` builds; EOGS cloned + CUDA kernels compiled | ✅ |
-| M2 | EOGS release `data.zip` downloaded + extracted; cameras prepped | ✅ |
-| M3 | `bash train.sh reproduceMain` runs to completion on the 4090 | ✅ (JAX scenes) |
-| M4 | DSM MAE matches EOGS paper Table 1 (within reason) | ✅ mean ≈1.44 m vs paper ≈1.4 m |
-| M5 | MAE + gotchas recorded here; committed + pushed | ◐ (recording now) |
-| — | **Gate:** stop and report MAE before any new method work | ✅ reported |
+| M2 | EOGS release `data.zip` downloaded + extracted; cameras prepped (all 7) | ✅ |
+| M3 | `train.sh reproduceMain` runs to completion (all 7 scenes) | ✅ |
+| M4 | DSM MAE matches EOGS paper Table 1 (within reason) | ✅ JAX mean 1.44 m vs paper ~1.4 m |
+| M5 | MAE + gotchas recorded here; committed + pushed | ✅ |
+| — | **Gate:** stop and report MAE before any new method work | ✅ passed |
+
+**PHASE-1 MILESTONE COMPLETE — validated EOGS baseline on the 4090.**
 
 ---
 
 ## 2. Done so far
 
-- 2026-06-22: Repo scaffolding created (Cowork session). Verified EOGS code repo
-  (`github.com/mezzelfo/EOGS`) bundles DFC2019 tiles + DSM truth (`dataset_v01`).
+- 2026-06-22: Repo scaffolding created. Verified EOGS code repo bundles DFC2019 +
+  IARPA tiles + DSM truth (`dataset_v01`).
 - 2026-06-22: Full environment built on the 4090 via `scripts/01_setup_env.sh`
-  (miniconda, conda ToS, apt build tools, torch cu121, EOGS, CUDA 12.1 toolkit,
-  3DGS kernels). EOGS reproduced on the 4 JAX scenes; DSM MAE matches the paper.
+  (miniconda, conda ToS, apt build tools, torch cu121, EOGS, CUDA 12.1 toolkit, kernels).
+- 2026-06-22: EOGS reproduced on all 7 scenes (4 JAX + 3 IARPA); DSM MAE matches paper.
 
 ## 3. In progress right now
 
-- Nothing running. Pipeline validated. Awaiting decision on Paper-1 next step.
+- Nothing running. Phase-1 done. Paper-1 design is the next work item (next session).
 
 ## 4. Next steps (ordered)
 
-1. (optional) Full Table 1: `bash scripts/04_prep_cameras.sh` (now includes IARPA_001/002/003)
-   then `bash scripts/05_run_eogs.sh reproduceMain` to also get the 3 IARPA scenes.
-2. Read deeply: EOGS/EOGS++, ForestSplat, GEDI L2A/L2B + ICESat-2 ATL08 fusion refs.
-3. Set up Earthdata Login: `python scripts/02_earthdata_auth.py` (free account first).
-4. Design Paper-1 lidar-anchored height loss + two-surface (canopy/ground) decomposition
-   as an ADDITION to the working EOGS pipeline. Get advisor sign-off before building.
+1. Read deeply: EOGS/EOGS++, ForestSplat, GEDI L2A/L2B + ICESat-2 ATL08 fusion refs.
+2. Earthdata Login set up (`scripts/02_earthdata_auth.py`) — for GEDI/ICESat-2/HLS.
+3. Select forested AOIs with GEDI + ICESat-2 + USGS 3DEP airborne-lidar overlap.
+4. Design Paper-1: lidar-anchored height loss + two-surface (canopy/ground) decomposition
+   + calibrated uncertainty head, as an ADDITION to EOGS. Advisor sign-off before building.
 
 ## 5. Blockers / open questions
 
-- None blocking. Note: build chain on a fresh WSL2 box needs, in order: build-essential,
-  conda ToS accept, gcc-12 (CUDA 12.1 host), system CUDA 12.1 toolkit (not conda's 13.x).
-  All now automated in `scripts/01_setup_env.sh`.
+- None. Build chain on a fresh WSL2 box (all automated in `01_setup_env.sh`, in order):
+  build-essential/make, conda ToS accept, drop `set -u` (conda hooks), env-matched system
+  CUDA 12.1 toolkit (ignore conda's 13.3), gcc-12 host compiler, camera prep for all 7 scenes.
 
 ---
 
-## 6. Results log
+## 6. Results log — EOGS reproduction (Table 1)
 
-| Date | Scene | Method | DSM MAE (m) | Notes |
-|------|-------|--------|-------------|-------|
-| 2026-06-22 | JAX_004 | EOGS (our run) | 1.379 | reproduceMain, 5000 iters |
-| 2026-06-22 | JAX_068 | EOGS (our run) | 1.093 | |
-| 2026-06-22 | JAX_214 | EOGS (our run) | 1.734 | |
-| 2026-06-22 | JAX_260 | EOGS (our run) | 1.554 | |
-| 2026-06-22 | JAX mean | EOGS (our run) | **1.440** | matches paper's ~1.4 m |
-| — | IARPA_001/002/003 | EOGS | pending | data present; re-run after camera prep |
+Full run `reproduceMain` (log eogs_reproduceMain_20260622_194045), 5000 iters/scene:
 
-EOGS paper Table 1 reference (read exact per-scene values from the PDF to fill):
-JAX_004 ≈ __, JAX_068 ≈ __, JAX_214 ≈ __, JAX_260 ≈ __ ; reported avg ≈ 1.4 m.
+| Date | Scene | Method | DSM MAE (m) |
+|------|-------|--------|-------------|
+| 2026-06-22 | JAX_004   | EOGS (our run) | 1.360 |
+| 2026-06-22 | JAX_068   | EOGS (our run) | 1.095 |
+| 2026-06-22 | JAX_214   | EOGS (our run) | 1.784 |
+| 2026-06-22 | JAX_260   | EOGS (our run) | 1.539 |
+| 2026-06-22 | IARPA_001 | EOGS (our run) | 1.591 |
+| 2026-06-22 | IARPA_002 | EOGS (our run) | 1.985 |
+| 2026-06-22 | IARPA_003 | EOGS (our run) | 2.072 |
+| 2026-06-22 | **JAX mean**   | EOGS (our run) | **1.444** |
+| 2026-06-22 | **IARPA mean** | EOGS (our run) | **1.883** |
+| 2026-06-22 | **All-7 mean** | EOGS (our run) | **1.632** |
+
+Note: a first JAX-only run (log _191754) gave 1.379/1.093/1.734/1.554 (mean 1.440) — the
+small per-scene differences are the random-seed variation the EOGS README flags. Stable.
+EOGS paper Table 1 reference (fill exact per-scene from the PDF): JAX avg ≈ 1.4 m.
 
 ---
 
@@ -85,7 +93,7 @@ JAX_004 ≈ __, JAX_068 ≈ __, JAX_214 ≈ __, JAX_260 ≈ __ ; reported avg �
 - conda env: `eogs`, Python 3.10
 - PyTorch: cu121 wheels (torch.version.cuda = 12.1); torch.cuda.is_available() = True
 - Build toolchain: system CUDA toolkit 12.1 at `/usr/local/cuda-12.1`; host compiler gcc-12
-  (note: a stray conda CUDA 13.3 exists in the env but is ignored — build uses 12.1 via CUDA_HOME)
+  (a stray conda CUDA 13.3 exists in the env but is ignored — build uses 12.1 via CUDA_HOME)
 - EOGS repo commit: cca973e7ea512091b52c8ff741c80ddade5793d2
 - diff-gaussian-rasterization / simple-knn: built ✅
 - CUDA wheel index used: cu121
@@ -103,10 +111,9 @@ JAX_004 ≈ __, JAX_068 ≈ __, JAX_214 ≈ __, JAX_260 ≈ __ ; reported avg �
 
 ## 9. Session log (newest on top)
 
-- **2026-06-22** — EOGS reproduced on the 4090. Built full env via 01_setup_env.sh (fixed,
-  in order: build-essential/make, conda ToS, nounset vs conda hooks, env-matched CUDA 12.1
-  toolkit vs system 13.3, gcc-12 host compiler, CC-var clobber, IARPA camera prep). Ran
-  reproduceMain: JAX DSM MAE = 1.379/1.093/1.734/1.554 (mean 1.440 m), matching the paper's
-  ~1.4 m. All fixes folded into the scripts (single self-installing path for the advisor).
+- **2026-06-22** — Full EOGS reproduction on the 4090: all 7 scenes via reproduceMain.
+  JAX MAE mean 1.44 m (matches paper ~1.4 m); IARPA mean 1.88 m. Env built end-to-end by
+  01_setup_env.sh; every setup error folded back into the scripts (single self-installing
+  path for the advisor). Phase-1 milestone complete. Earthdata auth: pending (next session).
 - **2026-06-22** — Cowork scaffolding session. Built git repo, scripts, configs, notebook.
 - **2026-06-22** — Repo initialized; planning docs added. No code run yet.
