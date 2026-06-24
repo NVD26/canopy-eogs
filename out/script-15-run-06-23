@@ -1,0 +1,217 @@
+(eogs) nvd@LYRA:/mnt/c/Users/Navaneeth/Claude/Projects/PhD work$ bash scripts/15_train_lidar.sh JAX_068 0.1
+==================== applying Paper-1 lidar-loss patch ====================
+   + copied lidar_anchors.py -> /home/nvd/eogs-src/EOGS/src/gaussiansplatting
+   = already patched (lidar_anchors_path) in __init__.py
+   = already patched (w_L_lidar = 0.0) in __init__.py
+   = already patched (_p1_build_index) in train.py
+   = already patched (L_lidar = 0  # [P1-lidar]) in train.py
+   = already patched ([P1-lidar] compute) in train.py
+   = already patched (+ opt.w_L_lidar * L_lidar) in train.py
+DONE. EOGS patched for the Paper-1 lidar loss. Re-running this is safe (idempotent).
+==================== TRAIN baseline  (w_L_lidar=0.0) ====================
+Optimizing /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline
+Output folder: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline [23/06 11:36:57]
+Found affine_models.json file, assuming Affine data set! [23/06 11:36:57]
+20 [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Warning: Reference altitude not found, using zeros [23/06 11:36:57]
+Number of points generated inside the inner bbox: 1003939 [23/06 11:36:58]
+Volume inner bbox: 0.6662109500409447 [23/06 11:36:58]
+Density inside the inner bbox: 0.1298814341450032 [23/06 11:36:58]
+Total density: 0.12999999948301585 [23/06 11:36:58]
+Expected density: 0.13 [23/06 11:36:58]
+[[1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ ...
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]] [23/06 11:36:58]
+Loading Training Cameras [23/06 11:36:59]
+Loading Test Cameras [23/06 11:36:59]
+Number of points at initialisation :  1003939 [23/06 11:36:59]
+[P1-lidar] 78 anchor-views across 19 cameras; 17 match train-cams from /mnt/c/Users/Navaneeth/Claude/Projects/PhD work/data/anchors/JAX_068_gedi_anchors.npz [23/06 11:36:59]
+Training progress: 100%|█| 5000/5000 [03:09<00:00, 26.39it/s, Loss=0.0448909, Lp
+done global cc alignment [23/06 11:40:09]
+
+[ITER 5000] Saving Gaussians [23/06 11:40:09]
+
+Training complete. [23/06 11:40:09]
+Looking for config file in /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline/cfg_args
+Config file found: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline/cfg_args
+Rendering /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline
+Loading trained model at iteration 5000 [23/06 11:40:11]
+Found affine_models.json file, assuming Affine data set! [23/06 11:40:11]
+20 [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Warning: Reference altitude not found, using zeros [23/06 11:40:11]
+Number of points generated inside the inner bbox: 1003939 [23/06 11:40:12]
+Volume inner bbox: 0.6662109500409447 [23/06 11:40:12]
+Density inside the inner bbox: 0.1298814341450032 [23/06 11:40:12]
+Total density: 0.12999999948301585 [23/06 11:40:12]
+Expected density: 0.13 [23/06 11:40:12]
+[[1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ ...
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]] [23/06 11:40:12]
+Loading Training Cameras [23/06 11:40:12]
+Loading Test Cameras [23/06 11:40:13]
+gaussians._xyz.shape torch.Size([59675, 3]) [23/06 11:40:13]
+/home/nvd/eogs-src/EOGS/src/gaussiansplatting/render.py:59: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  cc = torch.load(os.path.join(model_path, "color_correction", f"iteration_{iteration}", "color_correction.pth"), 'cpu')
+Rendering progress: 100%|██████████████████████████████████████████████████████████████████| 17/17 [00:03<00:00,  5.16it/s]
+Rendering progress: 100%|████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.14it/s]
+-------------------- EVAL baseline: OVERALL --------------------
+/home/nvd/miniconda3/envs/eogs/lib/python3.10/site-packages/rasterio/__init__.py:356: NotGeoreferencedWarning: Dataset has no geotransform, gcps, or rpcs. The identity matrix will be returned.
+  dataset = DatasetReader(path, driver=driver, sharing=sharing, **kwargs)
+MAE: 1.1014179
+-------------------- EVAL baseline: TREE PIXELS (--filter_tree) --------------------
+/home/nvd/miniconda3/envs/eogs/lib/python3.10/site-packages/rasterio/__init__.py:356: NotGeoreferencedWarning: Dataset has no geotransform, gcps, or rpcs. The identity matrix will be returned.
+  dataset = DatasetReader(path, driver=driver, sharing=sharing, **kwargs)
+MAE: 1.075526
+RESULT baseline: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_baseline
+==================== TRAIN lidar  (w_L_lidar=0.1) ====================
+Optimizing /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar
+Output folder: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar [23/06 11:40:20]
+Found affine_models.json file, assuming Affine data set! [23/06 11:40:20]
+20 [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:20]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Warning: Reference altitude not found, using zeros [23/06 11:40:21]
+Number of points generated inside the inner bbox: 1003939 [23/06 11:40:21]
+Volume inner bbox: 0.6662109500409447 [23/06 11:40:21]
+Density inside the inner bbox: 0.1298814341450032 [23/06 11:40:21]
+Total density: 0.12999999948301585 [23/06 11:40:21]
+Expected density: 0.13 [23/06 11:40:21]
+[[1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ ...
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]] [23/06 11:40:21]
+Loading Training Cameras [23/06 11:40:22]
+Loading Test Cameras [23/06 11:40:22]
+Number of points at initialisation :  1003939 [23/06 11:40:22]
+[P1-lidar] 78 anchor-views across 19 cameras; 17 match train-cams from /mnt/c/Users/Navaneeth/Claude/Projects/PhD work/data/anchors/JAX_068_gedi_anchors.npz [23/06 11:40:22]
+Training progress: 100%|█| 5000/5000 [02:43<00:00, 30.57it/s, Loss=0.0473422, Lp
+done global cc alignment [23/06 11:43:06]
+
+[ITER 5000] Saving Gaussians [23/06 11:43:06]
+
+Training complete. [23/06 11:43:06]
+Looking for config file in /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar/cfg_args
+Config file found: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar/cfg_args
+Rendering /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar
+Loading trained model at iteration 5000 [23/06 11:43:08]
+Found affine_models.json file, assuming Affine data set! [23/06 11:43:08]
+20 [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Warning: Reference altitude not found, using zeros [23/06 11:43:08]
+Number of points generated inside the inner bbox: 1003939 [23/06 11:43:08]
+Volume inner bbox: 0.6662109500409447 [23/06 11:43:08]
+Density inside the inner bbox: 0.1298814341450032 [23/06 11:43:08]
+Total density: 0.12999999948301585 [23/06 11:43:08]
+Expected density: 0.13 [23/06 11:43:08]
+[[1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ ...
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]
+ [1.1 1.1 1.1]] [23/06 11:43:08]
+Loading Training Cameras [23/06 11:43:09]
+Loading Test Cameras [23/06 11:43:10]
+gaussians._xyz.shape torch.Size([63570, 3]) [23/06 11:43:10]
+/home/nvd/eogs-src/EOGS/src/gaussiansplatting/render.py:59: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  cc = torch.load(os.path.join(model_path, "color_correction", f"iteration_{iteration}", "color_correction.pth"), 'cpu')
+Rendering progress: 100%|██████████████████████████████████████████████████████████████████| 17/17 [00:03<00:00,  5.20it/s]
+Rendering progress: 100%|████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  4.64it/s]
+-------------------- EVAL lidar: OVERALL --------------------
+/home/nvd/miniconda3/envs/eogs/lib/python3.10/site-packages/rasterio/__init__.py:356: NotGeoreferencedWarning: Dataset has no geotransform, gcps, or rpcs. The identity matrix will be returned.
+  dataset = DatasetReader(path, driver=driver, sharing=sharing, **kwargs)
+MAE: 1.219464
+-------------------- EVAL lidar: TREE PIXELS (--filter_tree) --------------------
+/home/nvd/miniconda3/envs/eogs/lib/python3.10/site-packages/rasterio/__init__.py:356: NotGeoreferencedWarning: Dataset has no geotransform, gcps, or rpcs. The identity matrix will be returned.
+  dataset = DatasetReader(path, driver=driver, sharing=sharing, **kwargs)
+MAE: 1.2009954
+RESULT lidar: /home/nvd/eogs-src/EOGS/output/p1lidar_1782232615_JAX_068_lidar
+
+==================== DONE — ablation complete ====================
+Compare the two EVAL prints (overall + tree) above:
+  baseline = EOGS unchanged (w_L_lidar=0);  lidar = + GEDI canopy-anchor loss (w=0.1).
+Same scene, same code path, only w_L_lidar differs. Record both numbers in STATUS.md.

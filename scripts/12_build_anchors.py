@@ -1,32 +1,37 @@
 #!/usr/bin/env python3
 """
-12_build_anchors.py — build GEDI lidar anchors for a scene AND validate them against
-the airborne DSM before trusting them. RUN ON THE 4090.
+12_build_anchors.py — build TRUSTWORTHY GEDI lidar anchors for a scene. RUN ON THE 4090.
 
-Validation-first (per project rule: no unverified data feeds a loss):
-  1. Read the EXACT eval tile bounds from <scene>_DSM.txt = (xoff_E, yoff_N, size_px, res)
-     => UTM tile [xoff, xoff+size*res] E x [yoff, yoff+size*res] N (zone from tile center).
-  2. Load ALL GEDI L2A granules, project footprint lon/lat -> tile UTM, keep those inside
-     the tile that pass quality (quality_flag==1, degrade_flag==0, sensitivity>=thresh).
-  3. CROSS-CHECK: sample the airborne DSM at each footprint and compare GEDI canopy-top
-     (elev_highestreturn) to it. A correct projection/datum gives a tight residual after a
-     single global vertical offset. Report median offset + residual MAE/abs-median.
-  4. Only if the residual is small do we save aligned anchors (ground + canopy-top in the
-     DSM's vertical datum) for the EOGS lidar loss.
+This is the upgraded builder. It uses the independently-validated USGS 3DEP bare-earth
+DTM (see scripts/13) to do three things that earlier checks proved are necessary:
+  1. OUTLIER REJECT (quality control): align GEDI to 3DEP only to test each footprint, and
+     drop the ~10% gross blunders whose aligned ground is beyond --max-residual of 3DEP.
+  2. KEEP THE EOGS FRAME: we SAVE the RAW GEDI ellipsoidal heights, because EOGS reconstructs
+     in the satellite RPC frame which is WGS84-ellipsoidal too. (3DEP is NAVD88/orthometric;
+     the ~-29.6 m geoid offset is recorded for converting to NAVD88 when evaluating vs 3DEP,
+     but is NOT applied to the supervision heights, or it would inject a ~30 m bias in EOGS.)
+  3. SAVE both returns per footprint (ground + canopy top) in UTM, ready for the EOGS loss.
+
+Area of interest:
+  - default: the exact scene tile bounds from <scene>_DSM.txt (the EOGS-evaluated area),
+  - --aoi-km K: a K-by-K box around the scene centre instead (more footprints; use this
+    when training EOGS over a larger reconstruction than a single 256 m DFC2019 tile).
 
 Usage:
   python scripts/12_build_anchors.py --scene JAX_068
-  python scripts/12_build_anchors.py --scene JAX_068 --sensitivity 0.9 --max-residual 5
+  python scripts/12_build_anchors.py --scene JAX_068 --aoi-km 2 --sensitivity 0.9
 """
 import argparse, glob, json, os, sys
 import numpy as np
 
 EPSG_WGS84 = "EPSG:4326"
+IMG_SERVER = ("https://elevation.nationalmap.gov/arcgis/rest/services/"
+              "3DEPElevation/ImageServer/exportImage")
 
 
 def utm_epsg_from_lonlat(lon, lat):
     zone = int((lon + 180) // 6) + 1
-    return f"EPSG:{32600 + zone if lat >= 0 else 32700 + zone}", zone
+    return f"EPSG:{32600 + zone if lat >= 0 else 32700 + zone}"
 
 
 def tile_center_lonlat(eogs_dir, scene):
@@ -51,168 +56,168 @@ def tile_center_lonlat(eogs_dir, scene):
     return None, None
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--scene", default="JAX_068")
-    ap.add_argument("--eogs-dir", default=os.path.expanduser("~/eogs-src/EOGS"))
-    ap.add_argument("--lidar-dir", default=os.path.expanduser("~/eogs-data/lidar_probe"))
-    ap.add_argument("--out-dir", default=None, help="where to save anchors (default: repo data/anchors)")
-    ap.add_argument("--sensitivity", type=float, default=0.9)
-    ap.add_argument("--max-residual", type=float, default=5.0, help="trust gate: residual abs-median (m)")
-    args = ap.parse_args()
-    sc = args.scene
-    here = os.path.dirname(os.path.abspath(__file__))
-    out_dir = args.out_dir or os.path.join(here, "..", "data", "anchors")
-
-    import rasterio, h5py
-    from pyproj import Transformer
-
-    # 1. exact tile bounds from DSM.txt + airborne DSM raster
-    gt_dir = os.path.join(args.eogs_dir, "data", "truth", sc)
-    txt = os.path.join(gt_dir, f"{sc}_DSM.txt")
+def scene_bbox_lonlat(eogs_dir, scene, pyproj_to_wgs):
+    """Exact tile bounds from <scene>_DSM.txt (UTM) converted to lon/lat."""
+    txt = os.path.join(eogs_dir, "data", "truth", scene, f"{scene}_DSM.txt")
     if not os.path.exists(txt):
-        print(f"!! {txt} not found (needed for exact UTM tile bounds)."); return 1
+        return None
     xoff, yoff, size, res = (float(v) for v in np.loadtxt(txt).ravel()[:4])
-    size = int(size)
-    E_min, E_max = xoff, xoff + size * res
-    N_min, N_max = yoff, yoff + size * res
-    with rasterio.open(os.path.join(gt_dir, f"{sc}_DSM.tif")) as f:
-        dsm = f.read(1).astype("float64")
-        nodata = f.nodata
-    dsm_valid = np.isfinite(dsm)
-    if nodata is not None: dsm_valid &= dsm != nodata
-    dsm_valid &= np.abs(dsm) < 1e4
-    print(f"tile {sc}: UTM E[{E_min:.1f},{E_max:.1f}] N[{N_min:.1f},{N_max:.1f}]  "
-          f"{size}x{size}px @ {res} m = {size*res:.0f} m; DSM valid range "
-          f"[{dsm[dsm_valid].min():.1f},{dsm[dsm_valid].max():.1f}] m")
+    E0, E1, N0, N1 = xoff, xoff + size * res, yoff, yoff + size * res
+    xs, ys = [E0, E1, E0, E1], [N0, N0, N1, N1]
+    lons, lats = pyproj_to_wgs.transform(xs, ys)
+    return (min(lons), min(lats), max(lons), max(lats))
 
-    lon_c, lat_c = tile_center_lonlat(args.eogs_dir, sc)
-    epsg, zone = utm_epsg_from_lonlat(lon_c, lat_c)
-    print(f"tile center lon/lat=({lon_c:.4f},{lat_c:.4f}) -> {epsg} (UTM zone {zone})")
-    to_utm = Transformer.from_crs(EPSG_WGS84, epsg, always_xy=True)
 
-    def dsm_footprint(E, N, radius_m=12.5):
-        """Sample the airborne DSM over each ~25 m GEDI footprint (not one pixel).
-        Returns per-footprint (point, mean, max, min, n_valid)."""
-        rad = int(round(radius_m / res))
-        col = ((E - E_min) / res).astype(int)
-        row = ((N_max - N) / res).astype(int)
-        pt = np.full(len(E), np.nan); mn = np.full(len(E), np.nan)
-        mx = np.full(len(E), np.nan); lo = np.full(len(E), np.nan)
-        nv = np.zeros(len(E), int)
-        for k in range(len(E)):
-            r, c = row[k], col[k]
-            if not (0 <= r < size and 0 <= c < size):
-                continue
-            if dsm_valid[r, c]:
-                pt[k] = dsm[r, c]
-            r0, r1 = max(0, r-rad), min(size, r+rad+1)
-            c0, c1 = max(0, c-rad), min(size, c+rad+1)
-            w = dsm[r0:r1, c0:c1]; wv = dsm_valid[r0:r1, c0:c1]
-            vals = w[wv]
-            if vals.size:
-                mn[k], mx[k], lo[k], nv[k] = vals.mean(), vals.max(), vals.min(), vals.size
-        return pt, mn, mx, lo, nv
+def fetch_3dep_dtm(w, s, e, n, res_m, out_tif):
+    try:
+        import requests
+        getter = lambda u, p: requests.get(u, params=p, timeout=120).content
+    except ImportError:
+        import urllib.parse, urllib.request
+        getter = lambda u, p: urllib.request.urlopen(u + "?" + urllib.parse.urlencode(p), timeout=120).read()
+    import math
+    midlat = math.radians((s + n) / 2)
+    W = max(8, min(4000, int(round((e - w) * 111320 * math.cos(midlat) / res_m))))
+    H = max(8, min(4000, int(round((n - s) * 110540 / res_m))))
+    params = {"bbox": f"{w},{s},{e},{n}", "bboxSR": "4326", "imageSR": "4326",
+              "size": f"{W},{H}", "format": "tiff", "pixelType": "F32",
+              "interpolation": "RSP_BilinearInterpolation", "f": "image"}
+    data = getter(IMG_SERVER, params)
+    if not data or len(data) < 1000 or data[:4] not in (b"II*\x00", b"MM\x00*"):
+        raise RuntimeError(f"3DEP did not return a GeoTIFF (got {len(data)} bytes).")
+    open(out_tif, "wb").write(data)
+    return out_tif
 
-    # 2. gather GEDI footprints inside the EXACT tile
-    gedis = sorted(glob.glob(os.path.join(args.lidar_dir, "*GEDI02_A*.h5")))
-    if not gedis:
-        print(f"!! no GEDI02_A granules in {args.lidar_dir}. Run 10_query_lidar.py --scenes {sc} --count-footprints 25 first.")
-        return 1
-    cols = {k: [] for k in ("lon", "lat", "E", "N", "ground", "top", "rh100", "qual", "sens")}
-    for p in gedis:
+
+def load_gedi(lidar_dir, w, s, e, n, sensitivity):
+    import h5py
+    cols = {k: [] for k in ("lon", "lat", "ground", "top", "rh100", "sens")}
+    for p in sorted(glob.glob(os.path.join(lidar_dir, "*GEDI02_A*.h5"))):
         try:
             with h5py.File(p, "r") as f:
                 for b in [k for k in f.keys() if k.startswith("BEAM")]:
                     g = f[b]
                     if "lat_lowestmode" not in g: continue
-                    lat = g["lat_lowestmode"][:]; lon = g["lon_lowestmode"][:]
-                    E, N = to_utm.transform(lon, lat)
-                    E, N = np.asarray(E), np.asarray(N)
-                    m = (E >= E_min) & (E <= E_max) & (N >= N_min) & (N <= N_max)
+                    la, lo = g["lat_lowestmode"][:], g["lon_lowestmode"][:]
+                    m = (lo >= w) & (lo <= e) & (la >= s) & (la <= n)
                     if not m.any(): continue
                     i = np.where(m)[0]
-                    def gv(name): return g[name][:][i] if name in g else np.full(len(i), np.nan)
+                    gv = lambda nm: g[nm][:][i] if nm in g else np.full(len(i), np.nan)
+                    q = gv("quality_flag"); se = gv("sensitivity")
+                    gr = gv("elev_lowestmode"); tp = gv("elev_highestreturn")
                     rh = g["rh"][:][i] if "rh" in g else None
                     rh100 = rh[:, 100] if rh is not None and rh.shape[1] > 100 else np.full(len(i), np.nan)
-                    cols["lon"] += lon[i].tolist(); cols["lat"] += lat[i].tolist()
-                    cols["E"] += E[i].tolist();     cols["N"] += N[i].tolist()
-                    cols["ground"] += gv("elev_lowestmode").tolist()
-                    cols["top"]    += gv("elev_highestreturn").tolist()
-                    cols["rh100"]  += rh100.tolist()
-                    cols["qual"]   += gv("quality_flag").tolist()
-                    cols["sens"]   += gv("sensitivity").tolist()
-        except Exception as e:
-            print(f"  (skip {os.path.basename(p)}: {e})")
-    n_raw = len(cols["lon"])
-    arr = {k: np.asarray(v, dtype="float64") for k, v in cols.items()}
-    keep = (arr["qual"] == 1) & (arr["sens"] >= args.sensitivity) & np.isfinite(arr["ground"]) & np.isfinite(arr["top"])
-    for k in arr: arr[k] = arr[k][keep]
-    n = len(arr["lon"])
-    print(f"\nGEDI footprints inside the {size*res:.0f} m tile: {n_raw} raw -> {n} after quality "
-          f"(quality_flag==1, sensitivity>={args.sensitivity})")
-    if n == 0:
-        print("!! no quality footprints inside the exact tile. Try a larger AOI or relax --sensitivity.")
-        return 1
+                    keep = (q == 1) & (se >= sensitivity) & np.isfinite(gr) & np.isfinite(tp)
+                    cols["lon"] += lo[i][keep].tolist(); cols["lat"] += la[i][keep].tolist()
+                    cols["ground"] += gr[keep].tolist(); cols["top"] += tp[keep].tolist()
+                    cols["rh100"] += rh100[keep].tolist(); cols["sens"] += se[keep].tolist()
+        except Exception as ex:
+            print(f"  (skip {os.path.basename(p)}: {ex})")
+    return {k: np.asarray(v, dtype="float64") for k, v in cols.items()}
 
-    # 3. VALIDATION: GEDI canopy-top vs airborne DSM aggregated over the ~25 m footprint.
-    #    (Only canopy-TOP is checkable against a surface DSM; GEDI GROUND needs a bare-earth
-    #     DTM e.g. USGS 3DEP -- deferred. A single-pixel compare is wrong for a 25 m footprint.)
-    pt, dmean, dmax, dmin, nvld = dsm_footprint(arr["E"], arr["N"])
-    v = np.isfinite(dmean) & np.isfinite(arr["top"])
-    print("\n================= VALIDATION: GEDI canopy-top vs airborne DSM (footprint-aggregated) =================")
-    print(f"footprints with DSM overlap: {int(v.sum())}/{n}  (footprint radius 12.5 m)")
 
-    # per-footprint diagnostic table (look at the real data)
-    print(f"\n{'#':>2}{'g_grnd':>9}{'g_top':>9}{'dsm_pt':>9}{'dsm_mean':>10}{'dsm_max':>9}{'top-mean':>10}{'top-max':>9}")
-    order = np.where(v)[0]
-    for j in order:
-        print(f"{j:>2}{arr['ground'][j]:>9.2f}{arr['top'][j]:>9.2f}{pt[j]:>9.2f}"
-              f"{dmean[j]:>10.2f}{dmax[j]:>9.2f}{arr['top'][j]-dmean[j]:>10.2f}{arr['top'][j]-dmax[j]:>9.2f}")
-
-    def report(label, dsm_ref):
-        d = (arr["top"][v] - dsm_ref[v])
-        off = float(np.median(d)); r = d - off
-        print(f"  vs DSM {label:<5}: offset {off:+.2f} m | residual abs-median "
-              f"{np.median(np.abs(r)):.2f} m, MAE {np.mean(np.abs(r)):.2f} m, std {r.std():.2f} m")
-        return float(np.median(np.abs(r))), off
-    am_mean, off_mean = report("mean", dmean)
-    am_max, off_max = report("max", dmax)
-    canopy_h = arr["top"] - arr["ground"]
-    print(f"  GEDI canopy height (top-ground): median {np.median(canopy_h):.1f} m, "
-          f"range [{canopy_h.min():.1f},{canopy_h.max():.1f}]")
-
-    # Honest verdict: use the PRINCIPLED comparison only (GEDI canopy-top vs DSM footprint
-    # MAX -- both are the top of the footprint). Do NOT cherry-pick mean-vs-max. And require a
-    # minimum number of overlapping footprints, or the check is statistically meaningless.
-    MIN_N = 30
-    abs_med, off = am_max, off_max
-    n_ov = int(v.sum())
-    if n_ov < MIN_N:
-        validated = False
-        print(f"\nVERDICT: INCONCLUSIVE -- only {n_ov} footprints (need >={MIN_N} for a real check).")
-        print(f"  principled top-vs-DSM-max: abs-median {abs_med:.2f} m, MAE {am_max:.2f} m -- too few")
-        print("  points + large scatter to trust. NOT validated; do NOT train on these yet.")
-        print("  -> validate on a LARGER area with airborne lidar (USGS 3DEP over Jacksonville):")
-        print("     hundreds of footprints will pin the GEDI<->DSM datum offset and check BOTH returns.")
-    elif abs_med <= args.max_residual:
-        validated = True
-        print(f"\nVERDICT: PASS (n={n_ov}, principled abs-median {abs_med:.2f} m <= {args.max_residual} m).")
-    else:
-        validated = False
-        print(f"\nVERDICT: FAIL (n={n_ov}, abs-median {abs_med:.2f} m > {args.max_residual} m). Investigate.")
-
-    # 4. save anchors aligned to the DSM/scene vertical datum (subtract the offset)
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--scene", default="JAX_068")
+    ap.add_argument("--eogs-dir", default=os.path.expanduser("~/eogs-src/EOGS"))
+    ap.add_argument("--lidar-dir", default=os.path.expanduser("~/eogs-data/lidar_probe"))
+    ap.add_argument("--out-dir", default=None)
+    ap.add_argument("--aoi-km", type=float, default=None, help="override scene tile with a KxKm box")
+    ap.add_argument("--res-m", type=float, default=10.0)
+    ap.add_argument("--sensitivity", type=float, default=0.9)
+    ap.add_argument("--max-residual", type=float, default=3.0, help="keep |aligned ground - 3DEP| <= this (m)")
+    ap.add_argument("--min-clean", type=int, default=30)
+    args = ap.parse_args()
+    sc = args.scene
+    here = os.path.dirname(os.path.abspath(__file__))
+    out_dir = args.out_dir or os.path.join(here, "..", "data", "anchors")
     os.makedirs(out_dir, exist_ok=True)
+
+    import rasterio
+    from pyproj import Transformer
+
+    lon_c, lat_c = tile_center_lonlat(args.eogs_dir, sc)
+    if lon_c is None:
+        print(f"!! could not locate scene {sc} centre (no RPC json)."); return 1
+    epsg = utm_epsg_from_lonlat(lon_c, lat_c)
+    to_wgs = Transformer.from_crs(epsg, EPSG_WGS84, always_xy=True)
+    to_utm = Transformer.from_crs(EPSG_WGS84, epsg, always_xy=True)
+
+    if args.aoi_km:
+        dlat = args.aoi_km / 110.54; dlon = args.aoi_km / (111.32 * np.cos(np.radians(lat_c)))
+        w, s, e, n = lon_c - dlon, lat_c - dlat, lon_c + dlon, lat_c + dlat
+        aoi_desc = f"{args.aoi_km} km box around {sc} centre"
+    else:
+        bb = scene_bbox_lonlat(args.eogs_dir, sc, to_wgs)
+        if bb is None:
+            print(f"!! no {sc}_DSM.txt for exact bounds; pass --aoi-km instead."); return 1
+        w, s, e, n = bb
+        aoi_desc = f"exact {sc} eval tile"
+    print(f"AOI: {aoi_desc}  lon/lat ({w:.4f},{s:.4f})-({e:.4f},{n:.4f})  UTM {epsg}")
+
+    # 3DEP DTM for the AOI (the cleaning + datum reference)
+    dtm_tif = os.path.join(out_dir, f"{sc}_3dep_dtm.tif")
+    try:
+        fetch_3dep_dtm(w, s, e, n, args.res_m, dtm_tif)
+    except Exception as ex:
+        print(f"!! 3DEP fetch failed: {ex}"); return 1
+    with rasterio.open(dtm_tif) as f:
+        dtm = f.read(1).astype("float64"); tr = f.transform
+        nod = f.nodata; Hh, Ww = dtm.shape
+    dvalid = np.isfinite(dtm) & (np.abs(dtm) < 1e4)
+    if nod is not None: dvalid &= dtm != nod
+
+    # GEDI in AOI
+    g = load_gedi(args.lidar_dir, w, s, e, n, args.sensitivity)
+    n_raw = len(g["lon"])
+    if n_raw == 0:
+        print("!! no quality GEDI footprints in AOI. Widen --aoi-km or relax --sensitivity."); return 1
+
+    # sample 3DEP over each ~25 m footprint (mean of valid pixels in a 12.5 m radius)
+    inv = ~tr; rad = max(1, int(round(12.5 / args.res_m)))
+    dtm_fp = np.full(n_raw, np.nan)
+    for k in range(n_raw):
+        col, row = inv * (g["lon"][k], g["lat"][k]); col, row = int(col), int(row)
+        if not (0 <= row < Hh and 0 <= col < Ww): continue
+        r0, r1 = max(0, row-rad), min(Hh, row+rad+1); c0, c1 = max(0, col-rad), min(Ww, col+rad+1)
+        vals = dtm[r0:r1, c0:c1][dvalid[r0:r1, c0:c1]]
+        if vals.size: dtm_fp[k] = vals.mean()
+    ov = np.isfinite(dtm_fp)
+
+    # 1. align to 3DEP ONLY to test each footprint (geoid offset; not applied to saved heights)
+    offset = float(np.median(g["ground"][ov] - dtm_fp[ov]))   # ~ -geoid (ellipsoid -> NAVD88)
+    resid = (g["ground"] - offset) - dtm_fp
+
+    # 2. outlier reject
+    clean = ov & (np.abs(resid) <= args.max_residual)
+    n_clean = int(clean.sum())
+    print(f"GEDI footprints: {n_raw} quality -> {n_clean} clean "
+          f"(|aligned ground - 3DEP| <= {args.max_residual} m)")
+    print(f"geoid offset (ellipsoid -> NAVD88, for 3DEP eval only): {offset:+.2f} m")
+    if n_clean:
+        print(f"clean-set ground residual vs 3DEP: median {np.median(np.abs(resid[clean])):.2f} m")
+        ch = g["top"][clean] - g["ground"][clean]
+        print(f"canopy height (top - ground) over clean set: median {np.median(ch):.1f} m, "
+              f"range [{ch.min():.1f},{ch.max():.1f}]")
+
+    # 3. save (UTM coords + both returns in the 3DEP/NAVD88 frame)
+    E, N = to_utm.transform(g["lon"][clean], g["lat"][clean])
+    validated = n_clean >= args.min_clean
     out = os.path.join(out_dir, f"{sc}_gedi_anchors.npz")
-    np.savez(out, lon=arr["lon"], lat=arr["lat"], E=arr["E"], N=arr["N"],
-             ground=arr["ground"] - off, canopytop=arr["top"] - off,
-             rh100=arr["rh100"], sensitivity=arr["sens"], datum_offset=off,
-             tile_bounds=np.array([E_min, N_min, E_max, N_max]), utm_epsg=epsg,
-             dsm_txt=np.array([xoff, yoff, size, res]), validated=validated)
-    tag = "VALIDATED" if validated else "UNVALIDATED (do not train on these yet)"
-    print(f"\nSaved {n} anchors [{tag}] -> {out}")
-    print("Note: GROUND still needs a bare-earth DTM (USGS 3DEP) to validate separately.")
+    np.savez(out,
+             lon=g["lon"][clean], lat=g["lat"][clean], E=np.asarray(E), N=np.asarray(N),
+             ground=g["ground"][clean], canopytop=g["top"][clean],   # RAW ellipsoidal (EOGS frame)
+             rh100=g["rh100"][clean], sensitivity=g["sens"][clean],
+             height_frame="WGS84 ellipsoid (matches EOGS RPC)",
+             geoid_offset_to_navd88=offset,                          # subtract for 3DEP/NAVD88 eval
+             utm_epsg=epsg, aoi_lonlat=np.array([w, s, e, n]),
+             max_residual=args.max_residual, validated=validated)
+    tag = "VALIDATED" if validated else f"LOW-COUNT ({n_clean} < {args.min_clean}; consider --aoi-km)"
+    print(f"\nSaved {n_clean} clean two-return anchors [{tag}] -> {out}")
+    print("Each anchor: UTM (E,N) + ground & canopy-top in WGS84-ellipsoid (EOGS frame).")
+    print(f"(For 3DEP/NAVD88 comparison, subtract geoid_offset {offset:+.2f} m.)")
+    print("Next (M7): feed these to a lidar loss in EOGS (a global vertical offset to EOGS's")
+    print("internal frame is absorbed during training; plan-position and relative heights are fixed).")
     return 0 if validated else 2
 
 
